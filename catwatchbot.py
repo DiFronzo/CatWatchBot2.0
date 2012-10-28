@@ -11,7 +11,7 @@ from odict import odict
 import codecs
 import locale
 
-from wp_private import botlogin, maillogin,mailaddr
+from wp_private import botlogin, mailfrom, mailto
 
 import logging
 import logging.handlers
@@ -20,13 +20,13 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('[%(asctime)s %(levelname)s] %(message)s')
 
-smtp_handler = logging.handlers.SMTPHandler(mailhost=("smtp.gmail.com", 587), 
-                fromaddr=mailaddr, toaddrs=mailaddr, subject=u"[toolserver] CatStatBot crashed!",
-                credentials=maillogin, secure=())
+smtp_handler = logging.handlers.SMTPHandler( mailhost = ('localhost', 25),
+                fromaddr = mailfrom, toaddrs = mailto, 
+                subject=u"[toolserver] CatWatchBot crashed!")
 smtp_handler.setLevel(logging.ERROR)
 logger.addHandler(smtp_handler)
 
-file_handler = logging.FileHandler('catstatbot.log')
+file_handler = logging.FileHandler('catwatchbot.log')
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
@@ -63,7 +63,7 @@ cats = {
         'templates': [u'språkvask', u'dårlig språk', u'språkrøkt']
     },
     u'kilder': {
-        'categories': [u'Artikler uten referanser', u'Artikler som trenger referanser'],
+        'categories': [u'Artikler uten referanser', u'Artikler som trenger referanser', 'Artikler uten kilder'],
         'templates': [u'referanseløs', u'trenger referanse', u'tr', u'referanse', u'citation needed', u'cn', u'fact', u'kildeløs', u'refforbedreavsnitt']
     },
     u'ukategorisert': {
@@ -531,17 +531,21 @@ class CatOverview(object):
     
     def ticker(self, sql, cat):
         ticker = Ticker(sql = sql, limit = 60, extended = True, fikset_kat = [cat], merket_kat = [cat])
-        text = ''
+        text = '{|\n'
         for dt in ticker.entries.keys():
-            text += u'===%s===\n{|\n' % dt
+            text += u'|-\n| colspan=4 style="font-weight:bold; border-bottom: 1px solid #888;" | %s\n' % dt
             #text += u'|-\n! colspan=3 style="text-align:left; font-size:larger;" | ' + dt + '\n'
             for entry in ticker.entries[dt]:
                 #text += u'|-\n|'+fc+' || ' + entry + '\n'
                 text += u'|-\n| ' + entry + '\n'
                 #fc = ''
-            text += u'|}\n'
+        text += u'|}\n'
         return text
     
+def total_seconds(td):
+    # for backwards compability. td is a timedelta object
+    return (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**6
+
 try:
 
     runstart = datetime.now()
@@ -549,14 +553,20 @@ try:
     import platform
     pv = platform.python_version()
     logger.info('running Python %s, setting locale to no_NO' % (pv))
-    locale.setlocale(locale.LC_ALL, 'no_NO')
+
+    for loc in ['no_NO', 'nb_NO.utf8']:
+        try:
+            locale.setlocale(locale.LC_ALL, loc.encode('utf-8'))
+        except locale.Error:
+            logger.warning('Locale %s not found' % loc)
+
     logger.debug('testing æøå')
 
     StatBot(botlogin, dryrun = False)
     CatOverview(botlogin, dryrun = False)
 
     runend = datetime.now()
-    runtime = (runend - runstart).total_seconds()
+    runtime = total_seconds(runend - runstart)
     logger.info('Runtime was %.f seconds.' % (runtime))
 
 
