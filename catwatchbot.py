@@ -230,11 +230,11 @@ class StatBot(object):
 
     def check_page(self, p, q, catkey, templates):
         #logger.info("    %s: " % (p)
-        foundCleanRev = False
+        foundTemplateChange = False
         revschecked = 0
         parentid = -1
         lastrev = -1
-        while foundCleanRev == False:
+        while foundTemplateChange == False:
             if parentid == 0:
                 logger.info('    %s: %s %s, was tagged from beginning' % (p,q, catkey))
                 break
@@ -259,14 +259,16 @@ class StatBot(object):
                             if txt.find(u'#OMDIRIGERING [[') != -1 or txt.find(u'#REDIRECT[[') != -1:
                                 logger.info('    %s: found redirect page' % (p))
                                 #logger.info("   (omdirigeringsside) ")
-                                foundCleanRev = True
+                                foundTemplateChange = True
                                 lastrev = -1
                                 break
-                            foundCleanRev = True if q == 'merket' else False
-                            for t in templates:
-                                if txt.lower().find(u'{{%s'%t) != -1:
-                                    foundCleanRev = False if q == 'merket' else True
-                            if foundCleanRev:
+ 
+                            foundTemplateChange = True if q == 'merket' else False
+                            m = re.search(r'{{(%s)[\s]*(\||}})' % '|'.join(templates), txt, re.IGNORECASE)
+                            if m:
+                                logger.debug("    Found template: %s" % m.group(1))
+                                foundTemplateChange = False if q == 'merket' else True
+                            if foundTemplateChange:
                                 break
                             else:
                                 lastrev = rev['revid']
