@@ -2,19 +2,35 @@
 #encoding=utf-8
 #from __future__ import unicode_literals
 from datetime import datetime, timedelta
-import mwclient
+import re
 import sys
 import time
-import urllib
-import sqlite3
-from odict import odict
 import codecs
 import locale
+import argparse
+import urllib
+
+import sqlite3
+import mwclient
+from odict import odict
 
 from wp_private import botlogin, mailfrom, mailto
 
 import logging
 import logging.handlers
+from progressbar import ProgressBar, Percentage, Bar, ETA, SimpleProgress
+
+parser = argparse.ArgumentParser( description = 'CatWatchBot' )
+#parser.add_argument('--page', required=False, help='Name of the contest page to work with')
+parser.add_argument('--simulate', action='store_true', help='Do not write results to wiki')
+parser.add_argument('--silent', action='store_true', help='No output to console')
+parser.add_argument('--verbose', action='store_true', help='Output debug messages')
+
+#parser.add_argument('--output', nargs='?', default='', help='Write results to file')
+#parser.add_argument('--log', nargs='?', default = '', help='Log file')
+#parser.add_argument('--verbose', action='store_true', default=False, help='More verbose logging')
+#parser.add_argument('--close', action='store_true', help='Close contest')
+args = parser.parse_args()
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -26,16 +42,19 @@ smtp_handler = logging.handlers.SMTPHandler( mailhost = ('localhost', 25),
 smtp_handler.setLevel(logging.ERROR)
 logger.addHandler(smtp_handler)
 
-file_handler = logging.FileHandler('catwatchbot.log')
+file_handler = logging.handlers.RotatingFileHandler('catwatchbot.log', maxBytes=100000, backupCount=2)
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
-#console_handler = logging.StreamHandler()
-#console_handler.setLevel(logging.INFO)
-#console_handler.setFormatter(formatter)
-#logger.addHandler(console_handler)
-
+if not args.silent:
+    console_handler = logging.StreamHandler()
+    if args.verbose:
+        console_handler.setLevel(logging.DEBUG)
+    else:
+        console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
 
 cats = {
     u'opprydning': { 
@@ -63,7 +82,7 @@ cats = {
         'templates': [u'språkvask', u'dårlig språk', u'språkrøkt']
     },
     u'kilder': {
-        'categories': [u'Artikler uten referanser', u'Artikler som trenger referanser', 'Artikler uten kilder'],
+        'categories': [u'Artikler uten referanser', u'Artikler som trenger referanser', u'Artikler uten kilder'],
         'templates': [u'referanseløs', u'trenger referanse', u'tr', u'referanse', u'citation needed', u'cn', u'fact', u'kildeløs', u'refforbedreavsnitt']
     },
     u'ukategorisert': {
@@ -74,7 +93,7 @@ cats = {
 
 class CatWatcher(object):
 
-    def __init__(self, sql, site, category, debug = False, subcategories = False, articlesonly = False, dryrun = False):
+    def __init__(self, sql, site, category, subcategories = False, articlesonly = False, dryrun = False):
 
         now = datetime.now().strftime('%F')
 
@@ -104,7 +123,12 @@ class CatWatcher(object):
                 cur.execute('INSERT INTO catlog (date,category,page,added,new) VALUES (?,?,?,0,0)', (now, category.page_title, p))
                 cur.execute('DELETE FROM catmembers WHERE category=? AND page=?', (category.page_title, p))
 
-        for p in self.additions:
+        #print len(self.additions)
+        #if len(self.additions) > 0:
+            #pbar = ProgressBar(maxval=len(self.additions), widgets=['Category: %s ' % category.page_title.encode('utf-8'), SimpleProgress(), Percentage()])
+            #pbar.start()
+        for i,p in enumerate(self.additions):
+            #pbar.update(i)
             isnew = 0
             res = site.api('query', prop='revisions', rvprop='timestamp', rvlimit=1, rvdir='newer', titles=p)
             if 'query' in res and 'pages' in res['query']:
@@ -126,9 +150,8 @@ class CatWatcher(object):
 
 class StatBot(object):
 
-    def __init__(self, login, debug = False, dryrun = False):
+    def __init__(self, login, dryrun = False):
 
-        self.debug = debug
         self.dryrun = dryrun
 
         logger.info("============== This is StatBot ==============")
@@ -146,7 +169,7 @@ class StatBot(object):
             self.update_wpstatpage(k)
         
         n = datetime.now()
-        page = self.site.Pages['Bruker:DanmicholoBot/tmp/stat']
+        page = self.site.Pages['Wikipedia:Underprosjekter/Vedlikehold og oppussing/Statistikk']
         text = u'{{#switch:{{{1|}}}\n| dato = %04d%02d%02d%02d%02d%02d\n| {{Feil|Ukjent nøkkel}}\n}}' % (n.year, n.month, n.day, n.hour, n.minute, n.second)
         if not self.dryrun:
             page.save(text)
@@ -213,20 +236,14 @@ class StatBot(object):
         lastrev = -1
         while foundCleanRev == False:
             if parentid == 0:
-                logger.info('    %s: tagged from beginning (%s)' % (p,q))
+                logger.info('    %s: %s %s, was tagged from beginning' % (p,q, catkey))
                 break
             elif parentid == -1:
-                if self.debug:
-                    print "API: titles",p
+                logger.debug("API: titles=%s", p)
                 query = self.site.api('query', prop='revisions', rvprop='ids|timestamp|user|content', rvdir='older', titles=p, rvlimit=10)['query']
-                if self.debug:
-                    print "OK"
             else:
-                if self.debug:
-                    print "API: titles",p,"start:",parentid
+                logger.debug("API: titles=%s rvstartid=%d", p, parentid)
                 query = self.site.api('query', prop='revisions', rvprop='ids|timestamp|user|content', rvdir='older', titles=p, rvlimit=10, rvstartid=parentid)['query']
-                if self.debug:
-                    print "OK"
             pid = query['pages'].keys()[0]
             if pid == '-1':
                 logger.info("(slettet, pid=-1)")
@@ -260,12 +277,12 @@ class StatBot(object):
                         else:
                             parentid = rev['parentid']
         if lastrev == -1:
-            logger.warning('    %s: didn\'t find template for %s' % (p,q))
+            logger.warning('    %s: %s %s, but no template was found! (checked %d revisions)' % (p, q, catkey, revschecked))
             #logger.info("Fant ikke merking!")
         else:
             revts = datetime.strptime(revts,'%Y-%m-%dT%H:%M:%SZ')
             
-            logger.info('    %s: found rev %s by %s (checked %d revisions)' % (p, lastrev, lastrevuser, revschecked))
+            logger.info('    %s: %s %s in rev %s by %s (checked %d revisions)' % (p, q, catkey, lastrev, lastrevuser, revschecked))
             cur = self.sql.cursor()
             if not self.dryrun:
                 cur.execute(u'''INSERT INTO cleanlog (date, category, action, page, user, revision)
@@ -280,7 +297,7 @@ class StatBot(object):
         now = datetime.now()
         year = now.strftime('%Y')
         
-        title = u'Bruker:DanmicholoBot/tmp/stat/%s-%s' % (catkey, year)
+        title = u'Wikipedia:Underprosjekter/Vedlikehold og oppussing/Statistikk/%s-%s' % (catkey, year)
         catstr = '\n'.join([u'*[[:Kategori:%s]]' % c for c in cats[catkey]['categories']])
         doc = u"""
 Denne malen er en tabell over hvor mange sider det på ulike datoer i 2012 befant seg i kategorien(e):
@@ -330,13 +347,13 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
                 text += u'|-\n| ' + entry + '\n'
                 fc = ''
         text += u'|}'
-        page = self.site.Pages['Bruker:DanmicholoBot/tmp/miniticker']
+        page = self.site.Pages['Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-mini']
         if not self.dryrun:
             page.save(text, summary='Oppdaterer')
         
         # Big ticker
         bigticker = Ticker(sql = self.sql, limit = 60, extended = True)
-        text = u'{{Bruker:Profoss/sandkasse1/Toppnav}}{{Bruker:DanmicholoBot/tmp/tickerheader}}\n'
+        text = u'{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Toppnav}}{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-header}}\n'
         for dt in bigticker.entries.keys():
             text += u'<h4>%s</h4>\n{|\n' % dt
             #text += u'|-\n! colspan=3 style="text-align:left; font-size:larger;" | ' + dt + '\n'
@@ -345,7 +362,7 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
                 text += u'|-\n| ' + entry + '\n'
                 #fc = ''
             text += u'|}'
-        page = self.site.Pages['Bruker:DanmicholoBot/tmp/ticker']
+        page = self.site.Pages['Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker']
         if not self.dryrun:
             page.save(text, summary='Oppdaterer')
        
@@ -484,7 +501,7 @@ class CatOverview(object):
         
         # Pages
         for k in [u'opprydning', u'oppdatering', u'interwiki', u'flytting', u'fletting', u'flytting', u'språkvask', u'kilder', u'ukategorisert']:
-            pagename = u'Bruker:Profoss/sandkasse1/' + k.capitalize()
+            pagename = u'Wikipedia:Underprosjekter/Vedlikehold og oppussing/' + k.capitalize()
             #print ":: ",pagename
             page = site.Pages[pagename]
             text = u'{{%s}}\n' % (pagename + '/intro')
@@ -497,7 +514,7 @@ class CatOverview(object):
                 text += self.allpages('Merkede sider', pages[k])
                 #text += self.formatsection('Nyeste', [reversed(pages[k][-10:]), reversed(pages[k][-20:-10])])
 
-            text += '\n==Siste oppdateringer==\n{{Bruker:DanmicholoBot/tmp/tickerheader}}\n' + self.ticker(sql, k) + '\n'
+            text += '\n==Siste oppdateringer==\n{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-header}}\n' + self.ticker(sql, k) + '\n'
 
             if dryrun:
                 print text
@@ -562,8 +579,8 @@ try:
 
     logger.debug('testing æøå')
 
-    StatBot(botlogin, dryrun = False)
-    CatOverview(botlogin, dryrun = False)
+    StatBot(botlogin, dryrun=args.simulate)
+    CatOverview(botlogin, dryrun=args.simulate)
 
     runend = datetime.now()
     runtime = total_seconds(runend - runstart)
