@@ -279,7 +279,7 @@ class StatBot(object):
                         else:
                             parentid = rev['parentid']
         if lastrev == -1:
-            logger.warning('    %s: %s %s, but no template was found! (checked %d revisions)' % (p, q, catkey, revschecked))
+            logger.warning('    %s: %s %s, but no template change was found! (checked %d revisions)' % (p, q, catkey, revschecked))
             #logger.info("Fant ikke merking!")
         else:
             revts = datetime.strptime(revts,'%Y-%m-%dT%H:%M:%SZ')
@@ -303,17 +303,17 @@ class StatBot(object):
         catstr = '\n'.join([u'*[[:Kategori:%s]]' % c for c in cats[catkey]['categories']])
         doc = u"""
 Denne malen er en tabell over hvor mange sider det på ulike datoer i 2012 befant seg i kategorien(e):
-%s
+%(cats)s
 Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorier. Malen har data siden 14. mai 2012.
 
 '''Bruk:''' (NB! Malen er under arbeid, og vil på et tidspunkt bli flyttet til en ny plassering uten omdirigering)
 
-: <code><nowiki>{{</nowiki>{{PAGENAME}}|YYYY-MM-DD<nowiki>}}</nowiki></code>
+: <code><nowiki>{{</nowiki>{{FULLPAGENAME}}|YYYY-MM-DD<nowiki>}}</nowiki></code>
 
 '''Eksempel:'''
 
-: {{mlp|{{PAGENAME}}|2012-05-14}} → {{%s|2012-05-14}}
-""" % (catstr, title)
+: <code><nowiki>{{</nowiki>{{FULLPAGENAME}}<nowiki>|%(year)s-05-14}}</nowiki></code> → {{%(templatename)s|%(year)s-05-14}}
+""" % { 'cats': catstr, 'templatename': title, 'year': year }
         
 
         cur = self.sql.cursor()
@@ -346,7 +346,7 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
             text += u'|-\n! colspan=3 | ' + fc + '\n'
             for entry in miniticker.entries[dt]:
                 #text += u'|-\n|'+fc+' || ' + entry + '\n'
-                text += u'|-\n| ' + entry + '\n'
+                text += entry + '\n'
                 fc = ''
         text += u'|}'
         page = self.site.Pages['Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-mini']
@@ -356,14 +356,15 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
         # Big ticker
         bigticker = Ticker(sql = self.sql, limit = 60, extended = True)
         text = u'{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Toppnav}}{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-header}}\n'
+        text += u'{|\n'
         for dt in bigticker.entries.keys():
-            text += u'<h4>%s</h4>\n{|\n' % dt
+            text += u'|-\n| colspan=4 style="font-weight:bold; border-bottom: 1px solid #888;" | %s\n' % dt
             #text += u'|-\n! colspan=3 style="text-align:left; font-size:larger;" | ' + dt + '\n'
             for entry in bigticker.entries[dt]:
                 #text += u'|-\n|'+fc+' || ' + entry + '\n'
-                text += u'|-\n| ' + entry + '\n'
+                text += entry + '\n'
                 #fc = ''
-            text += u'|}'
+        text += u'|}'
         page = self.site.Pages['Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker']
         if not self.dryrun:
             page.save(text, summary='Oppdaterer')
@@ -378,12 +379,30 @@ class Ticker(object):
 
     def format_ticker_entry(self, cursor, row, maxlen = -1, extended = False):
         verb = {
-                'fikset': { 'opprydning': 'ryddet', 'opprydning2': 'ryddet', 'oppdatering': 'oppdatert',
-                    'interwiki': 'interwikiet', u'språkvask': u'språkvasket', 'kilder': 'referansesjekket', 'ref2': 'referansesjekket',
-                    'ukategorisert': 'kategorisert', 'flytting': '(flyttemerke fjernet)', 'fletting': '(flettemerke fjernet)' },
-                'merket': { 'opprydning': 'trenger rydding', 'opprydning2': 'trenger rydding', 'oppdatering': 'trenger oppdatering',
-                    'interwiki': 'mangler interwiki', u'språkvask': u'trenger språkvask', 'kilder': 'trenger kilder', 'ref2': 'trenger kilder',
-                    'ukategorisert': 'mangler kategorier', 'flytting': u'foreslått flyttet', 'fletting': u'foreslått flettet' },
+                'fikset': { 
+                    'opprydning': 'ryddet', 
+                    'opprydning2': 'ryddet', 
+                    'oppdatering': 'oppdatert',
+                    'interwiki': 'interwikiet', 
+                    u'språkvask': u'språkvasket', 
+                    'kilder': 'kildebelagt', 
+                    'ref2': 'kildebelagt',
+                    'ukategorisert': 'kategorisert', 
+                    'flytting': ': flytteforslag avgjort av', 
+                    'fletting': ': fletteforslag avgjort av' 
+                },
+                'merket': { 
+                    'opprydning': 'trenger rydding', 
+                    'opprydning2': 'trenger rydding', 
+                    'oppdatering': 'trenger oppdatering',
+                    'interwiki': 'mangler interwiki', 
+                    u'språkvask': u'trenger språkvask', 
+                    'kilder': 'trenger kilder', 
+                    'ref2': 'trenger kilder',
+                    'ukategorisert': 'mangler kategorier', 
+                    'flytting': u'foreslått flyttet', 
+                    'fletting': u'foreslått flettet' 
+                },
             }
         icons = { 
             'fikset': 'QsiconSupporting.svg', #'Broom icon.svg', 
@@ -402,6 +421,9 @@ class Ticker(object):
             'ukategorisert': 'Farm-Fresh three tags.png'
             }
 
+        # id,date,category,page,user,revision,action
+        revid = row[5] 
+
         revts = datetime.strptime(row[1], '%Y-%m-%d %H:%M:%S')
         f = { 'title': row[3].encode('utf-8'), 'diff': 'prev', 'oldid': row[5] }
         link = u'http://no.wikipedia.org/w/index.php?%s' % urllib.urlencode(f)
@@ -413,26 +435,28 @@ class Ticker(object):
             title = title + u'|' + title[:(maxlen-3)] + u'…'
         if title.find(u'Kategori:') == 0:
             title = u':'+title
-        entry = u'[[%s]] %s' % (title, verb[action][row[2]])
-        if action == 'fikset':
-            entry += ' av [[Bruker:%s|%s]]' % (user, user)
-        elif extended:
-            entry += '. Merket av [[Bruker:%s|%s]]' % (user, user)
+        entry = u'{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-rad'
+        entry += u'|%s|%s|%s|%s|%s|%s' % (revts.strftime('%H:%M'), action, row[2], title, user, revid)
+        #if action == 'fikset':
+        #    entry += ' av [[Bruker:%s|%s]]' % (user, user)
+        #elif extended:
+        #    entry += '. Merket av [[Bruker:%s|%s]]' % (user, user)
         icon = icons[action]
         caticon = caticons[row[2]]
         if action == 'fikset':
-            cursor.execute('SELECT id FROM cleanlog WHERE page=? AND category=? AND action="merket" AND date>?',tuple([row[3],row[1],row[2]]))
+            cursor.execute('SELECT id FROM cleanlog WHERE page=? AND category=? AND action="merket" AND date>?', [row[3], row[2], row[1]])
             s = cursor.fetchall()
             if len(s) > 0:
-                entry = u'<s>%s</s>' % entry
+                entry += '|strikeout=1'
         if extended:
-            icon = u'[[File:%s|14px|link=]] [[File:%s|16px|link=]]' % (icon, caticon)
-        else:
-            icon = u'[[File:%s|14px|link=]]' % (icon)
+            entry += '|extended=1'
+        #if extended:
+        #    icon = u'[[File:%s|14px|link=]] [[File:%s|16px|link=]]' % (icon, caticon)
+        #else:
+        #    icon = u'[[File:%s|14px|link=]]' % (icon)
 
-        entry = '%s || %s || ([%s diff])' % (icon, entry, link)
-        if extended:
-            entry = u'%s || %s' % (revts.strftime('%H:%M'), entry)
+        #entry = '%s || %s || ([%s diff])' % (icon, entry, link)
+        entry += '}}'
         shortdt = revts.strftime('%e. %b') 
         return shortdt, entry
     
@@ -468,6 +492,9 @@ class Ticker(object):
 
         self.entries = ticker
 
+special_pages = {
+    'flytting': 'Wikipedia:Flytteforslag'
+}
 
 class CatOverview(object):
 
@@ -508,13 +535,16 @@ class CatOverview(object):
             page = site.Pages[pagename]
             text = u'{{%s}}\n' % (pagename + '/intro')
 
-            taggedentries = [p for p in pages[k] if p['tagged'] != 0]
-            if len(taggedentries) > 50:
-                text += self.formatsection('Eldste', [taggedentries[:10], taggedentries[10:20]])
-                text += self.formatsection('Nyeste', [reversed(taggedentries[-10:]), reversed(taggedentries[-20:-10])])
+            if k in special_pages:
+                text += '{{%s}}\n' % special_pages[k]
             else:
-                text += self.allpages('Merkede sider', pages[k])
-                #text += self.formatsection('Nyeste', [reversed(pages[k][-10:]), reversed(pages[k][-20:-10])])
+                taggedentries = [p for p in pages[k] if p['tagged'] != 0]
+                if len(taggedentries) > 50:
+                    text += self.formatsection('Eldste', [taggedentries[:10], taggedentries[10:20]])
+                    text += self.formatsection('Nyeste', [reversed(taggedentries[-10:]), reversed(taggedentries[-20:-10])])
+                else:
+                    text += self.allpages('Merkede sider', pages[k])
+                    #text += self.formatsection('Nyeste', [reversed(pages[k][-10:]), reversed(pages[k][-20:-10])])
 
             text += '\n==Siste oppdateringer==\n{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-header}}\n' + self.ticker(sql, k) + '\n'
 
@@ -556,7 +586,7 @@ class CatOverview(object):
             #text += u'|-\n! colspan=3 style="text-align:left; font-size:larger;" | ' + dt + '\n'
             for entry in ticker.entries[dt]:
                 #text += u'|-\n|'+fc+' || ' + entry + '\n'
-                text += u'|-\n| ' + entry + '\n'
+                text += entry + '\n'
                 #fc = ''
         text += u'|}\n'
         return text
