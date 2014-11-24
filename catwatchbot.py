@@ -354,7 +354,7 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
             page.save(text, summary='Oppdaterer')
         
         # Big ticker
-        bigticker = Ticker(sql = self.sql, limit = 60, extended = True)
+        bigticker = Ticker(sql = self.sql, limit = 200, extended = True)
         text = u'{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Toppnav}}{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-header}}\n'
         text += u'{|\n'
         for dt in bigticker.entries.keys():
@@ -579,7 +579,7 @@ class CatOverview(object):
             return '|-\n| [[%s]] || %s\n' % (name, p['tagged'].strftime('%e. %B %Y'))
     
     def ticker(self, sql, cat):
-        ticker = Ticker(sql = sql, limit = 60, extended = True, fikset_kat = [cat], merket_kat = [cat])
+        ticker = Ticker(sql = sql, limit = 200, extended = True, fikset_kat = [cat], merket_kat = [cat])
         text = '{|\n'
         for dt in ticker.entries.keys():
             text += u'|-\n| colspan=4 style="font-weight:bold; border-bottom: 1px solid #888;" | %s\n' % dt
