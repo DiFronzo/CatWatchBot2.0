@@ -23,7 +23,6 @@ from progressbar import ProgressBar, Percentage, Bar, ETA, SimpleProgress
 parser = argparse.ArgumentParser( description = 'CatWatchBot' )
 #parser.add_argument('--page', required=False, help='Name of the contest page to work with')
 parser.add_argument('--simulate', action='store_true', help='Do not write results to wiki')
-parser.add_argument('--silent', action='store_true', help='No output to console')
 parser.add_argument('--verbose', action='store_true', help='Output debug messages')
 
 #parser.add_argument('--output', nargs='?', default='', help='Write results to file')
@@ -42,19 +41,13 @@ smtp_handler = logging.handlers.SMTPHandler( mailhost = ('localhost', 25),
 smtp_handler.setLevel(logging.ERROR)
 logger.addHandler(smtp_handler)
 
-file_handler = logging.handlers.RotatingFileHandler('catwatchbot.log', maxBytes=100000, backupCount=2)
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-
-if not args.silent:
-    console_handler = logging.StreamHandler()
-    if args.verbose:
-        console_handler.setLevel(logging.DEBUG)
-    else:
-        console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
+console_handler = logging.StreamHandler()
+if args.verbose:
+    console_handler.setLevel(logging.DEBUG)
+else:
+    console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 cats = {
     u'opprydning': { 
