@@ -302,7 +302,7 @@ class StatBot(object):
         title = u'Wikipedia:Underprosjekter/Vedlikehold og oppussing/Statistikk/%s-%s' % (catkey, year)
         catstr = '\n'.join([u'*[[:Kategori:%s]]' % c for c in cats[catkey]['categories']])
         doc = u"""
-Denne malen er en tabell over hvor mange sider det på ulike datoer i 2012 befant seg i kategorien(e):
+Denne malen er en tabell over hvor mange sider det på ulike datoer i %(year)s befant seg i kategorien(e):
 %(cats)s
 Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorier. Malen har data siden 14. mai 2012.
 
@@ -319,7 +319,7 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
         cur = self.sql.cursor()
         latest = u'0'
         text = ''
-        for row in cur.execute(u'SELECT date,%s FROM stats WHERE date>? AND date<=? GROUP BY date ORDER by DATE asc'%catkey, (year+'-01-01',year+'-12-31')):
+        for row in cur.execute(u'SELECT date,%s FROM stats WHERE date>=? AND date<=? GROUP BY date ORDER by DATE asc'%catkey, (year+'-01-01',year+'-12-31')):
             text += ' | %s = %s\n' % (row[0],row[1])
             latest = row[1]
         text = u'<includeonly>{{#switch:{{{1|}}}\n| latest = %s\n%s' % (latest,text)
