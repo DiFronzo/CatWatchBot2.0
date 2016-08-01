@@ -156,7 +156,7 @@ class StatBot(object):
 
         logger.info("============== This is StatBot ==============")
 
-        self.site = mwclient.Site(('https', 'no.wikipedia.org'), clients_useragent='CatWatchBot. Run by User:Danmichaelo. Based on mwclient/%s' % (mwclient.__ver__))
+        self.site = mwclient.Site('no.wikipedia.org', clients_useragent='CatWatchBot. Run by User:Danmichaelo. Based on mwclient/%s' % (mwclient.__ver__))
         self.site.login(*botlogin)
 
         self.sql = sqlite3.connect('vedlikehold.db')
