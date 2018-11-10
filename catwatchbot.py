@@ -149,8 +149,7 @@ class StatBot(object):
 
         logger.info("============== This is StatBot ==============")
 
-        self.site = mwclient.Site('no.wikipedia.org', clients_useragent='CatWatchBot. Run by User:Danmichaelo. Based on mwclient/%s' % (mwclient.__ver__))
-        self.site.login(*botlogin)
+        self.site = mwclient.Site('no.wikipedia.org', clients_useragent='CatWatchBot. Run by User:Danmichaelo. Based on mwclient/%s' % (mwclient.__ver__), **botlogin)
 
         self.sql = sqlite3.connect('vedlikehold.db')
 
@@ -493,8 +492,7 @@ class CatOverview(object):
 
     def __init__(self, login, dryrun = False):
         
-        site = mwclient.Site('no.wikipedia.org')
-        site.login(*login)
+        site = mwclient.Site('no.wikipedia.org', **login)
         sql = sqlite3.connect('vedlikehold.db')
         cur = sql.cursor()
         cur2 = sql.cursor()
