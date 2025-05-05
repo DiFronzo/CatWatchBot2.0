@@ -1,14 +1,11 @@
 #!/usr/bin/env python
 #encoding=utf-8
-#from __future__ import unicode_literals
 from datetime import datetime, timedelta
 import re
-import sys
 import time
-import codecs
 import locale
 import argparse
-import urllib
+import urllib.parse
 
 import sqlite3
 import mwclient
@@ -36,7 +33,7 @@ logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('[%(asctime)s %(levelname)s] %(message)s')
 
 smtp_handler = logging.handlers.SMTPHandler( mailhost = ('localhost', 25),
-                fromaddr = mailfrom, toaddrs = mailto, 
+                fromaddr = mailfrom, toaddrs = mailto,
                 subject=u"[toolserver] CatWatchBot crashed!")
 smtp_handler.setLevel(logging.ERROR)
 logger.addHandler(smtp_handler)
@@ -50,7 +47,7 @@ console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
 cats = {
-    u'opprydning': { 
+    u'opprydning': {
         'categories': [u'Opprydning-statistikk', u'Viktig opprydning'],
         'templates': [u'opprydning', u'opprydningfordi', u'opprydding', u'viktig opprydning', u'opprydning-viktig']
     },
@@ -94,13 +91,11 @@ class CatWatcher(object):
         cur = sql.cursor()
         for row in cur.execute(u'SELECT page FROM catmembers WHERE category=?', (category.page_title,)):
             members0.append(row[0])
-        
+
         members1 = []
         for p in category.members():
             if articlesonly == False or p.namespace == 0:
                 members1.append(p.name)
-            #if p.namespace == 14 and subcategories:
-                # check subcats
 
         members0 = set(members0)
         members1 = set(members1)
@@ -110,23 +105,17 @@ class CatWatcher(object):
 
         self.removals = members0.difference(members1)
         self.additions = members1.difference(members0)
-        
+
         for p in self.removals:
             if not dryrun:
                 cur.execute('INSERT INTO catlog (date,category,page,added,new) VALUES (?,?,?,0,0)', (now, category.page_title, p))
                 cur.execute('DELETE FROM catmembers WHERE category=? AND page=?', (category.page_title, p))
 
-        #print len(self.additions)
-        #if len(self.additions) > 0:
-            #pbar = ProgressBar(maxval=len(self.additions), widgets=['Category: %s ' % category.page_title.encode('utf-8'), SimpleProgress(), Percentage()])
-            #pbar.start()
         for i,p in enumerate(self.additions):
-            #pbar.update(i)
             isnew = 0
             res = site.api('query', prop='revisions', rvprop='timestamp', rvlimit=1, rvdir='newer', titles=p)
             if 'query' in res and 'pages' in res['query']:
-                pageid = res['query']['pages'].keys()[0]
-                #print pageid
+                pageid = list(res['query']['pages'].keys())[0]
                 rv = res['query']['pages'][pageid]['revisions']
                 if len(rv) == 1:
                     ts = datetime.strptime(rv[0]['timestamp'],'%Y-%m-%dT%H:%M:%SZ')
@@ -136,7 +125,7 @@ class CatWatcher(object):
             if not dryrun:
                 cur.execute('INSERT INTO catmembers (date,category,page) VALUES (?,?,?)', (now, category.page_title, p))
                 cur.execute('INSERT INTO catlog (date,category,page,added,new) VALUES (?,?,?,1,?)', (now, category.page_title, p, isnew))
-        
+
         sql.commit()
         cur.close()
 
@@ -159,7 +148,7 @@ class StatBot(object):
         # Update stats
         for k in cats.keys():
             self.update_wpstatpage(k)
-        
+
         n = datetime.now()
         page = self.site.Pages['Wikipedia:Underprosjekter/Vedlikehold og oppussing/Statistikk']
         text = u'{{#switch:{{{1|}}}\n| dato = %04d%02d%02d%02d%02d%02d\n| {{Feil|Ukjent nøkkel}}\n}}' % (n.year, n.month, n.day, n.hour, n.minute, n.second)
@@ -236,7 +225,7 @@ class StatBot(object):
             else:
                 logger.debug("API: titles=%s rvstartid=%d", p, parentid)
                 query = self.site.api('query', prop='revisions', rvprop='ids|timestamp|user|content', rvdir='older', titles=p, rvlimit=10, rvstartid=parentid)['query']
-            pid = query['pages'].keys()[0]
+            pid = list(query['pages'].keys())[0]
             if pid == '-1':
                 logger.info("(slettet, pid=-1)")
                 break
@@ -254,7 +243,7 @@ class StatBot(object):
                                 foundTemplateChange = True
                                 lastrev = -1
                                 break
- 
+
                             foundTemplateChange = True if q == 'merket' else False
                             m = re.search(r'{{(%s)[\s]*(\||}})' % '|'.join(templates), txt, re.IGNORECASE)
                             if m:
@@ -275,7 +264,7 @@ class StatBot(object):
             #logger.info("Fant ikke merking!")
         else:
             revts = datetime.strptime(revts,'%Y-%m-%dT%H:%M:%SZ')
-            
+
             logger.info('    %s: %s %s in rev %s by %s (checked %d revisions)' % (p, q, catkey, lastrev, lastrevuser, revschecked))
             cur = self.sql.cursor()
             if not self.dryrun:
@@ -287,10 +276,10 @@ class StatBot(object):
 
 
     def update_wpstatpage(self, catkey):
-        
+
         now = datetime.now()
         year = now.strftime('%Y')
-        
+
         title = u'Wikipedia:Underprosjekter/Vedlikehold og oppussing/Statistikk/%s-%s' % (catkey, year)
         catstr = '\n'.join([u'*[[:Kategori:%s]]' % c for c in cats[catkey]['categories']])
         doc = u"""
@@ -306,7 +295,7 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
 
 : <code><nowiki>{{</nowiki>{{FULLPAGENAME}}<nowiki>|%(year)s-05-14}}</nowiki></code> → {{%(templatename)s|%(year)s-05-14}}
 """ % { 'cats': catstr, 'templatename': title, 'year': year }
-        
+
 
         cur = self.sql.cursor()
         latest = u'0'
@@ -325,11 +314,11 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
             page.save(text, summary='Oppdaterer')
 
     def update_ticker(self):
-        
+
         # Miniticker
         miniticker = Ticker(
                 sql = self.sql, limit = 12, extended = False,
-                fikset_kat = [u'opprydning',u'opprydning2',u'interwiki',u'språkvask',u'kilder',u'ref2'], 
+                fikset_kat = [u'opprydning',u'opprydning2',u'interwiki',u'språkvask',u'kilder',u'ref2'],
                 merket_kat = [u'opprydning',u'opprydning2',u'språkvask']
             )
         text = u'{|\n'
@@ -337,30 +326,26 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
             fc = "'''{{nowrap|"+dt+"}}'''"
             text += u'|-\n! colspan=3 | ' + fc + '\n'
             for entry in miniticker.entries[dt]:
-                #text += u'|-\n|'+fc+' || ' + entry + '\n'
                 text += entry + '\n'
                 fc = ''
         text += u'|}'
         page = self.site.Pages['Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-mini']
         if not self.dryrun:
             page.save(text, summary='Oppdaterer')
-        
+
         # Big ticker
         bigticker = Ticker(sql = self.sql, limit = 200, extended = True)
         text = u'{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Toppnav}}{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-header}}\n'
         text += u'{|\n'
         for dt in bigticker.entries.keys():
             text += u'|-\n| colspan=4 style="font-weight:bold; border-bottom: 1px solid #888;" | %s\n' % dt
-            #text += u'|-\n! colspan=3 style="text-align:left; font-size:larger;" | ' + dt + '\n'
             for entry in bigticker.entries[dt]:
-                #text += u'|-\n|'+fc+' || ' + entry + '\n'
                 text += entry + '\n'
-                #fc = ''
         text += u'|}'
         page = self.site.Pages['Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker']
         if not self.dryrun:
             page.save(text, summary='Oppdaterer')
-       
+
 
 
 class Ticker(object):
@@ -371,34 +356,34 @@ class Ticker(object):
 
     def format_ticker_entry(self, cursor, row, maxlen = -1, extended = False):
         verb = {
-                'fikset': { 
-                    'opprydning': 'ryddet', 
-                    'opprydning2': 'ryddet', 
+                'fikset': {
+                    'opprydning': 'ryddet',
+                    'opprydning2': 'ryddet',
                     'oppdatering': 'oppdatert',
-                    'interwiki': 'interwikiet', 
-                    u'språkvask': u'språkvasket', 
-                    'kilder': 'kildebelagt', 
+                    'interwiki': 'interwikiet',
+                    u'språkvask': u'språkvasket',
+                    'kilder': 'kildebelagt',
                     'ref2': 'kildebelagt',
-                    'ukategorisert': 'kategorisert', 
-                    'flytting': ': flytteforslag avgjort av', 
-                    'fletting': ': fletteforslag avgjort av' 
+                    'ukategorisert': 'kategorisert',
+                    'flytting': ': flytteforslag avgjort av',
+                    'fletting': ': fletteforslag avgjort av'
                 },
-                'merket': { 
-                    'opprydning': 'trenger rydding', 
-                    'opprydning2': 'trenger rydding', 
+                'merket': {
+                    'opprydning': 'trenger rydding',
+                    'opprydning2': 'trenger rydding',
                     'oppdatering': 'trenger oppdatering',
-                    'interwiki': 'mangler interwiki', 
-                    u'språkvask': u'trenger språkvask', 
-                    'kilder': 'trenger kilder', 
+                    'interwiki': 'mangler interwiki',
+                    u'språkvask': u'trenger språkvask',
+                    'kilder': 'trenger kilder',
                     'ref2': 'trenger kilder',
-                    'ukategorisert': 'mangler kategorier', 
-                    'flytting': u'foreslått flyttet', 
-                    'fletting': u'foreslått flettet' 
+                    'ukategorisert': 'mangler kategorier',
+                    'flytting': u'foreslått flyttet',
+                    'fletting': u'foreslått flettet'
                 },
             }
-        icons = { 
-            'fikset': 'QsiconSupporting.svg', #'Broom icon.svg', 
-            'merket': 'Qsicon Achtung.svg' 
+        icons = {
+            'fikset': 'QsiconSupporting.svg',
+            'merket': 'Qsicon Achtung.svg'
             }
         caticons = {
             'opprydning': 'Broom icon.svg',
@@ -413,13 +398,12 @@ class Ticker(object):
             'ukategorisert': 'Farm-Fresh three tags.png'
             }
 
-        # id,date,category,page,user,revision,action
-        revid = row[5] 
+        revid = row[5]
 
         revts = datetime.strptime(row[1], '%Y-%m-%d %H:%M:%S')
-        f = { 'title': row[3].encode('utf-8'), 'diff': 'prev', 'oldid': row[5] }
-        link = u'http://no.wikipedia.org/w/index.php?%s' % urllib.urlencode(f)
-            
+        f = { 'title': row[3], 'diff': 'prev', 'oldid': row[5] }
+        link = u'http://no.wikipedia.org/w/index.php?%s' % urllib.parse.urlencode(f)
+
         action = row[6]
         user = row[4]
         title = row[3]
@@ -429,10 +413,6 @@ class Ticker(object):
             title = u':'+title
         entry = u'{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-rad'
         entry += u'|%s|%s|%s|%s|%s|%s' % (revts.strftime('%H:%M'), action, row[2], title, user, revid)
-        #if action == 'fikset':
-        #    entry += ' av [[Bruker:%s|%s]]' % (user, user)
-        #elif extended:
-        #    entry += '. Merket av [[Bruker:%s|%s]]' % (user, user)
         icon = icons[action]
         caticon = caticons[row[2]]
         if action == 'fikset':
@@ -442,17 +422,11 @@ class Ticker(object):
                 entry += '|strikeout=1'
         if extended:
             entry += '|extended=1'
-        #if extended:
-        #    icon = u'[[File:%s|14px|link=]] [[File:%s|16px|link=]]' % (icon, caticon)
-        #else:
-        #    icon = u'[[File:%s|14px|link=]]' % (icon)
-
-        #entry = '%s || %s || ([%s diff])' % (icon, entry, link)
         entry += '}}'
-        shortdt = revts.strftime('%e. %b') 
+        shortdt = revts.strftime('%e. %b')
         return shortdt, entry
-    
-    
+
+
     def run(self, fikset_kat = [], merket_kat = [], limit = 10, extended = True):
         ticker = odict()
         cur = self.sql.cursor()
@@ -468,11 +442,11 @@ class Ticker(object):
         if len(merket_kat) > 0:
             whereClause += ' (action="merket" AND category IN (%s))' % ','.join(['?' for i in merket_kat])
             qargs.extend(merket_kat)
-        
+
         qargs.append(limit)
         query = 'SELECT id,date,category,page,user,revision,action FROM cleanlog' + whereClause \
                 + ' GROUP BY action,category,page ORDER BY date DESC LIMIT ?'
-        
+
         for row in cur.execute(query, qargs):
             shortdt, entry = self.format_ticker_entry(cur2, row, extended = extended)
             if not shortdt in ticker.keys():
@@ -491,13 +465,13 @@ special_pages = {
 class CatOverview(object):
 
     def __init__(self, login, dryrun = False):
-        
+
         site = mwclient.Site('no.wikipedia.org', **login)
         sql = sqlite3.connect('vedlikehold.db')
         cur = sql.cursor()
         cur2 = sql.cursor()
 
-        # Entries 
+        # Entries
         pages = {}
         logger.info("============== This is CatOverview ==============")
         for k in cats:
@@ -518,11 +492,10 @@ class CatOverview(object):
             taggedentries.sort(key = lambda p: p['tagged'])
             pages[k] = untaggedentries + taggedentries
             logger.info("   Tagged: %d, untagged: %d" % (len(taggedentries), len(untaggedentries)))
-        
+
         # Pages
         for k in [u'opprydning', u'oppdatering', u'interwiki', u'flytting', u'fletting', u'flytting', u'språkvask', u'kilder', u'ukategorisert']:
             pagename = u'Wikipedia:Underprosjekter/Vedlikehold og oppussing/' + k.capitalize()
-            #print ":: ",pagename
             page = site.Pages[pagename]
             text = u'{{%s}}\n' % (pagename + '/intro')
 
@@ -535,12 +508,11 @@ class CatOverview(object):
                     text += self.formatsection('Nyeste', [reversed(taggedentries[-10:]), reversed(taggedentries[-20:-10])])
                 else:
                     text += self.allpages('Merkede sider', pages[k])
-                    #text += self.formatsection('Nyeste', [reversed(pages[k][-10:]), reversed(pages[k][-20:-10])])
 
             text += '\n==Siste oppdateringer==\n{{Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-header}}\n' + self.ticker(sql, k) + '\n'
 
             if dryrun:
-                print text
+                print(text)
             else:
                 logger.info('Saving to wiki: %s' % pagename)
                 page.save(text, summary='CatOverview oppdaterer')
@@ -568,35 +540,31 @@ class CatOverview(object):
             return '|-\n| [[%s]] || %s\n' % (name, '--')
         else:
             return '|-\n| [[%s]] || %s\n' % (name, p['tagged'].strftime('%e. %B %Y'))
-    
+
     def ticker(self, sql, cat):
         ticker = Ticker(sql = sql, limit = 200, extended = True, fikset_kat = [cat], merket_kat = [cat])
         text = '{|\n'
         for dt in ticker.entries.keys():
             text += u'|-\n| colspan=4 style="font-weight:bold; border-bottom: 1px solid #888;" | %s\n' % dt
-            #text += u'|-\n! colspan=3 style="text-align:left; font-size:larger;" | ' + dt + '\n'
             for entry in ticker.entries[dt]:
-                #text += u'|-\n|'+fc+' || ' + entry + '\n'
                 text += entry + '\n'
-                #fc = ''
         text += u'|}\n'
         return text
-    
+
 def total_seconds(td):
-    # for backwards compability. td is a timedelta object
     return (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**6
 
 try:
 
     runstart = datetime.now()
-    
+
     import platform
     pv = platform.python_version()
     logger.info('running Python %s, setting locale to no_NO' % (pv))
 
     for loc in ['no_NO', 'nb_NO.utf8']:
         try:
-            locale.setlocale(locale.LC_ALL, loc.encode('utf-8'))
+            locale.setlocale(locale.LC_ALL, loc)
         except locale.Error:
             logger.warning('Locale %s not found' % loc)
 
@@ -613,6 +581,3 @@ try:
 except Exception:
 
     logger.exception('Unhandled Exception')
-    #raise
-
-
