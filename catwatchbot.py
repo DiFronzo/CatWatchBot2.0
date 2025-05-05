@@ -11,7 +11,10 @@ import sqlite3
 import mwclient
 from odict import odict
 
-from wp_private import botlogin, mailfrom, mailto
+import os  # Added to use environment variables
+
+# Removed the import of wp_private
+# from wp_private import botlogin, mailfrom, mailto
 
 import logging
 import logging.handlers
@@ -32,8 +35,17 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('[%(asctime)s %(levelname)s] %(message)s')
 
+# Updated to use environment variables
+botlogin = {
+    'username': os.getenv('BOT_USERNAME'),
+    'password': os.getenv('BOT_PASSWORD')
+}
+mailfrom = os.getenv('MAIL_FROM')
+mailto = os.getenv('MAIL_TO')
+
 smtp_handler = logging.handlers.SMTPHandler( mailhost = ('localhost', 25),
-                fromaddr = mailfrom, toaddrs = mailto,
+                fromaddr = mailfrom,  # Updated to use environment variable
+                toaddrs = mailto,     # Updated to use environment variable
                 subject=u"[toolserver] CatWatchBot crashed!")
 smtp_handler.setLevel(logging.ERROR)
 logger.addHandler(smtp_handler)
@@ -581,3 +593,4 @@ try:
 except Exception:
 
     logger.exception('Unhandled Exception')
+
