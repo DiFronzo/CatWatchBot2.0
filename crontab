@@ -1,5 +1,0 @@
-MAILTO=""
-# m h  dom mon dow   command
-54 23 * * * jsub -o run.log -j y -l release=trusty -mem 512m catwatchbot.job
-54 0 * * * jsub -o plot.log -j y -l release=trusty plot.job
-

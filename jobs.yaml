@@ -1,0 +1,11 @@
+---
+# Ref: https://wikitech.wikimedia.org/wiki/Help:Toolforge/Jobs_framework
+- name: catwatchbot
+  command: ./run.sh
+  image: python3.9
+  schedule: "54 23 * * *"
+  emails: onfailure
+
+
+  #  54 23 * * * jsub -o run.log -j y -mem 512m catwatchbot.job
+  # 54 0 * * * jsub -o plot.log -j y plot.job
