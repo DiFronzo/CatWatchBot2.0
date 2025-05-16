@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS stats (
 
 -- Create table for clean log
 CREATE TABLE IF NOT EXISTS cleanlog (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     date DATETIME NOT NULL,
     category TEXT NOT NULL,
     action TEXT NOT NULL,
