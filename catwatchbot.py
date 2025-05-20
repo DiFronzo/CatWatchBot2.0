@@ -16,10 +16,9 @@ import logging
 import logging.handlers
 from progressbar import ProgressBar, Percentage, Bar, ETA, SimpleProgress
 from dotenv import load_dotenv
+import mwclient.errors
 
 load_dotenv()
-
-dev=True
 
 parser = argparse.ArgumentParser( description = 'CatWatchBot' )
 #parser.add_argument('--page', required=False, help='Name of the contest page to work with')
@@ -124,7 +123,7 @@ class CatWatcher(object):
         for i,p in enumerate(self.additions):
             #pbar.update(i)
             isnew = 0
-            res = site.api('query', prop='revisions', rvprop='timestamp', rvlimit=1, rvdir='newer', titles=p)
+            res = safe_api_call(site, 'query', prop='revisions', rvprop='timestamp', rvlimit=1, rvdir='newer', titles=p)
             if 'query' in res and 'pages' in res['query']:
                 pageid = list(res['query']['pages'].keys())[0]
                 #print pageid
@@ -240,10 +239,10 @@ class StatBot(object):
                 break
             elif parentid == -1:
                 logger.debug("API: titles=%s", p)
-                query = self.site.api('query', prop='revisions', rvprop='ids|timestamp|user|content', rvdir='older', titles=p, rvlimit=10)['query']
+                query = safe_api_call(self.site, 'query', prop='revisions', rvprop='ids|timestamp|user|content', rvdir='older', titles=p, rvlimit=10)['query']
             else:
                 logger.debug("API: titles=%s rvstartid=%d", p, parentid)
-                query = self.site.api('query', prop='revisions', rvprop='ids|timestamp|user|content', rvdir='older', titles=p, rvlimit=10, rvstartid=parentid)['query']
+                query = safe_api_call(self.site, 'query', prop='revisions', rvprop='ids|timestamp|user|content', rvdir='older', titles=p, rvlimit=10, rvstartid=parentid)['query']
             pid = list(query['pages'].keys())[0]
             if pid == '-1':
                 logger.info("(slettet, pid=-1)")
@@ -534,7 +533,7 @@ class CatOverview(object):
 
         # Pages
         for k in ['opprydning', 'oppdatering', 'interwiki', 'flytting', 'fletting', 'flytting', 'språkvask', 'kilder', 'ukategorisert']:
-            pagename = 'Bruker:Premeditated/Vedlikehold og oppussing/' + k.capitalize() if dev else 'Wikipedia:Underprosjekter/Vedlikehold og oppussing/' + k.capitalize()
+            pagename = 'Wikipedia:Underprosjekter/Vedlikehold og oppussing/' + k.capitalize()
 
             #print ":: ",pagename
             page = site.Pages[pagename]
@@ -599,6 +598,17 @@ class CatOverview(object):
 def total_seconds(td):
     # for backwards compability. td is a timedelta object
     return (td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**6
+
+def safe_api_call(site, *args, **kwargs):
+    while True:
+        try:
+            return site.api(*args, **kwargs)
+        except mwclient.errors.APIError as e:
+            if hasattr(e, 'code') and e.code == 'ratelimited':
+                logger.warning('Rate limited by API. Waiting 10 seconds before retrying...')
+                time.sleep(10)
+            else:
+                raise
 
 try:
 
