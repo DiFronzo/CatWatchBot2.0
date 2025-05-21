@@ -17,6 +17,7 @@ import logging.handlers
 from progressbar import ProgressBar, Percentage, Bar, ETA, SimpleProgress
 from dotenv import load_dotenv
 import mwclient.errors
+import requests
 
 load_dotenv()
 
@@ -171,7 +172,7 @@ class StatBot(object):
         page = self.site.Pages['Wikipedia:Underprosjekter/Vedlikehold og oppussing/Statistikk']
         text = '{{#switch:{{{1|}}}\n| dato = %04d%02d%02d%02d%02d%02d\n| {{Feil|Ukjent nøkkel}}\n}}' % (n.year, n.month, n.day, n.hour, n.minute, n.second)
         if not self.dryrun:
-            page.save(text)
+            safe_page_save(page, text)
 
         # And ticker
         self.update_ticker()
@@ -329,7 +330,7 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
 
         page = self.site.Pages[title]
         if not self.dryrun:
-            page.save(text, summary='Oppdaterer')
+            safe_page_save(page, text)
 
     def update_ticker(self):
 
@@ -350,7 +351,7 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
         text += '|}'
         page = self.site.Pages['Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker-mini']
         if not self.dryrun:
-            page.save(text, summary='Oppdaterer')
+            safe_page_save(page, text)
 
         # Big ticker
         bigticker = Ticker(sql = self.sql, limit = 200, extended = True)
@@ -366,7 +367,7 @@ Tallet inkluderer både artikler og andre sider, men ikke sider i underkategorie
         text += '|}'
         page = self.site.Pages['Wikipedia:Underprosjekter/Vedlikehold og oppussing/Ticker']
         if not self.dryrun:
-            page.save(text, summary='Oppdaterer')
+            safe_page_save(page, text)
 
 
 
@@ -556,7 +557,7 @@ class CatOverview(object):
                 print(text)
             else:
                 logger.info('Saving to wiki: %s' % pagename)
-                page.save(text, summary='CatOverview oppdaterer')
+                safe_page_save(page, text, summary='CatOverview oppdaterer')
 
     def allpages(self, title, pages):
         half = int(len(pages)/2)
@@ -606,6 +607,20 @@ def safe_api_call(site, *args, **kwargs):
         except mwclient.errors.APIError as e:
             if hasattr(e, 'code') and e.code == 'ratelimited':
                 logger.warning('Rate limited by API. Waiting 10 seconds before retrying...')
+                time.sleep(10)
+            else:
+                raise
+        except requests.exceptions.ChunkedEncodingError:
+            logger.warning('ChunkedEncodingError: Response ended prematurely. Retrying in 5 seconds...')
+            time.sleep(5)
+
+def safe_page_save(page, *args, **kwargs):
+    while True:
+        try:
+            return page.save(*args, **kwargs)
+        except mwclient.errors.APIError as e:
+            if hasattr(e, 'code') and e.code == 'ratelimited':
+                logger.warning('Rate limited by API (edit/save). Waiting 10 seconds before retrying...')
                 time.sleep(10)
             else:
                 raise
