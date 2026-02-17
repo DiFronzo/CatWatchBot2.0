@@ -2,3 +2,4 @@ pywikibot
 python-dotenv
 numpy
 matplotlib
+requests_oauthlib

@@ -179,6 +179,13 @@ class StatBot:
 
         self.sql = sqlite3.connect('vedlikehold.db')
 
+        # Auto-create tables if they don't exist
+        schema_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vedlikehold.sql')
+        if os.path.exists(schema_file):
+            with open(schema_file) as f:
+                self.sql.executescript(f.read())
+            logger.debug('Database schema ensured')
+
         # Update DB
         self.check_cats()
 

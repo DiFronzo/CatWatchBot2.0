@@ -1,12 +1,16 @@
 #!/bin/bash
-# Usage:
-# toolforge-jobs run bootstrap-venv --command "./bootstrap-venv.sh" --image python3.9 --wait
+
+# use bash strict mode
 set -euo pipefail
 
-rm -rf ENV
-python3 -m venv ENV
+# delete the venv, if it already exists
+rm -rf pyvenv
 
-. ENV/bin/activate
+# create the venv
+python3 -m venv pyvenv
+
+# activate it
+source pyvenv/bin/activate
 
 # upgrade pip inside the venv and add support for the wheel package format
 pip install -U pip wheel
