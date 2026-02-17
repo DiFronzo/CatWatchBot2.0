@@ -1,6 +1,4 @@
-odict
-mwclient
-numpy
-progressbar
+pywikibot
 python-dotenv
+numpy
 matplotlib

@@ -1,20 +1,18 @@
-#encoding=utf-8
+# encoding=utf-8
 # run twice a day, at 12.30 and 00.30
-import sys, os, datetime
-import mwclient
-import locale
+import sys
+import os
 
 from dotenv import load_dotenv
 load_dotenv()
 
-#for loc in ['no_NO', 'nb_NO.utf8']:
-#    try:
-#        print "Trying",loc
-#        locale.setlocale(locale.LC_ALL, loc)
-#    except locale.Error:
-#        print 'Locale %s not found' % loc
+# Tell pywikibot where to find user-config.py (same directory as this script)
+os.environ['PYWIKIBOT_DIR'] = os.path.dirname(os.path.abspath(__file__))
 
-now = datetime.datetime.now()
+import pywikibot
+
+commons = pywikibot.Site('commons', 'commons')
+commons.login()
 
 for cat in ['opprydning', 'oppdatering', 'interwiki', 'flytting', 'fletting', 'språkvask', 'kilder', 'ukategorisert']:
     fname = 'nowp vedlikeholdsutvikling - %s.svg' % cat
@@ -23,18 +21,9 @@ for cat in ['opprydning', 'oppdatering', 'interwiki', 'flytting', 'fletting', 's
         sys.stderr.write('File "%s" was not found\n' % fname)
         sys.exit(1)
 
-    commons = mwclient.Site('commons.wikimedia.org',
-            consumer_token=os.getenv('MW_CONSUMER_TOKEN'),
-            consumer_secret=os.getenv('MW_CONSUMER_SECRET'),
-            access_token=os.getenv('MW_ACCESS_TOKEN'),
-            access_secret=os.getenv('MW_ACCESS_SECRET')
-    )
-
-    p = commons.pages['File:' + fname]
-    f = open(fname, 'rb')
-    if p.exists:
-        commons.upload(f, fname, comment = 'Bot: Updating plot', ignore = True)
+    page = pywikibot.FilePage(commons, 'File:' + fname)
+    if page.exists():
+        page.upload(fname, comment='Bot: Updating plot', ignore_warnings=True)
         print("Ok")
     else:
-        print("Error: File does not exist at Commons: %s",fname)
-    f.close()
+        print("Error: File does not exist at Commons: %s" % fname)

@@ -5,9 +5,15 @@ __pycache__/
 # Ignore virtual environment folders
 venv/
 .env
+apicache/
+throttle.ctrl
 
 # Ignore SQLite database files
 db.sqlite3
+vedlikehold.db
+
+# Ignore simulate output
+simulate_output/
 
 # Ignore log files
 *.log

@@ -2,6 +2,8 @@
 
 CatWatchBot is a maintenance and statistics bot for Norwegian Wikipedia, designed to monitor, log, and report on various maintenance categories and templates. It helps keep track of articles needing cleanup, updates, sources, and more.
 
+It updates statistics for maintenance categories for the [Vedlikehold og oppussing](https://no.wikipedia.org/wiki/Wikipedia:Underprosjekter/Vedlikehold_og_oppussing) project.
+
 ## 🚀 Features
 - Tracks changes in key maintenance categories (e.g., cleanup, updates, interwiki, sources)
 - Logs additions and removals of pages in these categories
@@ -11,10 +13,11 @@ CatWatchBot is a maintenance and statistics bot for Norwegian Wikipedia, designe
 - Verbose logging for debugging
 
 ## 🛠️ Requirements
-- Python 3
+- Python 3.9+
+- [Pywikibot](https://www.mediawiki.org/wiki/Manual:Pywikibot) for MediaWiki API interaction
 - Dependencies listed in `requirements.txt`
 - A valid `vedlikehold.db` SQLite database (see `vedlikehold.sql` for schema)
-- Environment variables for MediaWiki API credentials and email (see below)
+- OAuth 1.0a credentials for the bot account
 
 ## ⚙️ Setup
 1. **Install dependencies:**
@@ -28,11 +31,17 @@ CatWatchBot is a maintenance and statistics bot for Norwegian Wikipedia, designe
    MW_CONSUMER_SECRET=your_secret
    MW_ACCESS_TOKEN=your_access_token
    MW_ACCESS_SECRET=your_access_secret
+   MW_BOT_USERNAME=CatWatchBot
    MAIL_FROM=your@email.com
    MAIL_TO=admin@email.com
    ```
 3. **Prepare the database:**
-   Ensure `vedlikehold.db` exists and is initialized using `vedlikehold.sql`.
+   Initialize `vedlikehold.db` using `vedlikehold.sql`:
+   ```sh
+   sqlite3 vedlikehold.db < vedlikehold.sql
+   ```
+4. **Pywikibot configuration:**
+   The `user-config.py` file is included and reads OAuth credentials from your `.env` file automatically. No additional pywikibot setup is needed.
 
 ## 🏃 Usage
 Run the bot with:
@@ -48,7 +57,11 @@ python catwatchbot.py --simulate --verbose
 ```
 
 ## 🛠️ Deployment on Toolforge
-TBA
+1. Bootstrap the virtual environment:
+   ```sh
+   toolforge-jobs run bootstrap-venv --command "./bootstrap-venv.sh" --image python3.9 --wait
+   ```
+2. Schedule the bot job (see `jobs.yaml`).
 
 ## 📋 What It Does
 - Updates maintenance statistics on Wikipedia project pages
@@ -57,6 +70,7 @@ TBA
 - Generates overview and ticker pages for easy review
 
 ## 📝 Notes
+- The bot uses **pywikibot** for all MediaWiki API interactions with OAuth 1.0a authentication.
 - The bot is tailored for Norwegian Wikipedia and may require adjustments for other wikis.
 - Make sure your credentials and database are set up correctly before running.
 
