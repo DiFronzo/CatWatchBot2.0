@@ -257,7 +257,7 @@ class StatBot:
         # Update database
         logger.info('Updating database')
         cur = self.sql.cursor()
-        stats = self.site.statistics()
+        stats = self.site.siteinfo.get('statistics')
         narticles = stats['articles']
 
         now = datetime.now().strftime('%F')
@@ -282,7 +282,7 @@ class StatBot:
                 logger.info("    %s: page does not exist (deleted?)" % p)
                 return
 
-            for rev in page_obj.revisions(content=True, total=500):
+            for rev in page_obj.revisions(content=True, total=1000):
                 revschecked += 1
                 logger.debug(" checking (%s)" % rev.revid)
 
