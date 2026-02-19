@@ -135,8 +135,8 @@ class CatWatcher:
         self.additions = members1.difference(members0)
 
         # Detect first-run seeding: if DB was empty, skip per-page API lookups
-        seeding = len(members0) == 0 and len(self.additions) > 0
-        if seeding:
+        self.seeding = len(members0) == 0 and len(self.additions) > 0
+        if self.seeding:
             logger.info('    First run for %s — seeding %d members (skipping per-page checks)',
                         cat_title, len(self.additions))
 
@@ -148,7 +148,7 @@ class CatWatcher:
 
         for i, p in enumerate(self.additions):
             isnew = 0
-            if not seeding:
+            if not self.seeding:
                 try:
                     page_obj = pywikibot.Page(site, p)
                     oldest = next(page_obj.revisions(reverse=True, total=1))
@@ -214,13 +214,17 @@ class StatBot:
         counts = {}
         fikset = {}
         merket = {}
+        self._seeded_keys = set()
         for k in cats:
             counts[k] = 0
             fikset[k] = []
             merket[k] = []
+            any_seeded = False
             for catname in cats[k]['categories']:
                 cat = pywikibot.Category(self.site, 'Kategori:' + catname)
                 watcher = CatWatcher(self.sql, self.site, cat, dryrun=self.dryrun)
+                if watcher.seeding:
+                    any_seeded = True
                 counts[k] += watcher.count
                 fikset[k].extend(watcher.removals)
                 merket[k].extend(watcher.additions)
@@ -235,10 +239,16 @@ class StatBot:
                     logger.debug("%s, " % r)
             else:
                 logger.info('    %s: no changes' % k)
+            if any_seeded:
+                self._seeded_keys.add(k)
 
         # Look for templates in each page that was added or removed
+        # Skip on first run (seeding) — no meaningful diffs to check
         logger.info('Locating revisions when templates were inserted/removed')
         for k in cats:
+            if k in self._seeded_keys:
+                logger.info('    Skipping check_page for %s (first run seeding)', k)
+                continue
             for p in fikset[k]:
                 self.check_page(p, 'fikset', k, cats[k]['templates'])
             for p in merket[k]:
@@ -254,10 +264,9 @@ class StatBot:
         data = [now, narticles, counts['opprydning'], counts['oppdatering'],
                 counts['interwiki'], counts['flytting'], counts['fletting'],
                 counts['språkvask'], counts['kilder'], counts['ukategorisert']]
-        if not self.dryrun:
-            cur.execute('''INSERT INTO stats (date,articlecount,opprydning,oppdatering,interwiki,
-                    flytting,fletting,språkvask,kilder,ukategorisert)
-                    VALUES(?,?,?,?,?,?,?,?,?,?)''', data)
+        cur.execute('''INSERT INTO stats (date,articlecount,opprydning,oppdatering,interwiki,
+                flytting,fletting,språkvask,kilder,ukategorisert)
+                VALUES(?,?,?,?,?,?,?,?,?,?)''', data)
         self.sql.commit()
         cur.close()
 
@@ -273,7 +282,7 @@ class StatBot:
                 logger.info("    %s: page does not exist (deleted?)" % p)
                 return
 
-            for rev in page_obj.revisions(content=True):
+            for rev in page_obj.revisions(content=True, total=500):
                 revschecked += 1
                 logger.debug(" checking (%s)" % rev.revid)
 
@@ -325,10 +334,9 @@ class StatBot:
             logger.info('    %s: %s %s in rev %s by %s (checked %d revisions)' % (
                 p, q, catkey, lastrev, lastrevuser, revschecked))
             cur = self.sql.cursor()
-            if not self.dryrun:
-                cur.execute('''INSERT INTO cleanlog (date, category, action, page, user, revision)
-                    VALUES(?,?,?,?,?,?)''',
-                    (revts_str, catkey, q, p, lastrevuser, lastrev))
+            cur.execute('''INSERT INTO cleanlog (date, category, action, page, user, revision)
+                VALUES(?,?,?,?,?,?)''',
+                (revts_str, catkey, q, p, lastrevuser, lastrev))
             cur.close()
 
         time.sleep(1)
