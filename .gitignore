@@ -15,6 +15,9 @@ vedlikehold.db
 # Ignore simulate output
 simulate_output/
 
+# Ignore generated charts
+charts/
+
 # Ignore log files
 *.log
 

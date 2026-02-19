@@ -15,7 +15,7 @@ commons = pywikibot.Site('commons', 'commons')
 commons.login()
 
 for cat in ['opprydning', 'oppdatering', 'interwiki', 'flytting', 'fletting', 'språkvask', 'kilder', 'ukategorisert']:
-    fname = 'nowp vedlikeholdsutvikling - %s.svg' % cat
+    fname = os.path.join('charts', 'nowp vedlikeholdsutvikling - %s.svg' % cat)
     print(fname)
     if not os.path.isfile(fname):
         sys.stderr.write('File "%s" was not found\n' % fname)
