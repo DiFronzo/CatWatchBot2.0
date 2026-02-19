@@ -1,7 +1,7 @@
 ---
 # Ref: https://wikitech.wikimedia.org/wiki/Help:Toolforge/Running_jobs
 - name: catwatchbot
-  command: cd $HOME/CatWatchBot2.0 && pyvenv/bin/python catwatchbot.py
+  command: cd $HOME/CatWatchBot2.0 && pyvenv/bin/python catwatchbot.py --verbose
   image: python3.13
   schedule: "54 23 * * *"
   emails: onfailure
