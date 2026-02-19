@@ -36,10 +36,7 @@ It updates statistics for maintenance categories for the [Vedlikehold og oppussi
    MAIL_TO=admin@email.com
    ```
 3. **Prepare the database:**
-   Initialize `vedlikehold.db` using `vedlikehold.sql`:
-   ```sh
-   sqlite3 vedlikehold.db < vedlikehold.sql
-   ```
+   The database `vedlikehold.db` is automatically created on the first run using the schema in `vedlikehold.sql`. No manual setup needed.
 4. **Pywikibot configuration:**
    The `user-config.py` file is included and reads OAuth credentials from your `.env` file automatically. No additional pywikibot setup is needed.
 
@@ -57,11 +54,28 @@ python catwatchbot.py --simulate --verbose
 ```
 
 ## 🛠️ Deployment on Toolforge
-1. Bootstrap the virtual environment:
+
+1. **Bootstrap the virtual environment:**
    ```sh
-   toolforge-jobs run bootstrap-venv --command "./bootstrap-venv.sh" --image python3.9 --wait
+   chmod +x $HOME/CatWatchBot2.0/bootstrap-venv.sh
+   toolforge jobs run bootstrap-venv --command 'cd $HOME/CatWatchBot2.0 && ./bootstrap-venv.sh' --image python3.13 --wait
    ```
-2. Schedule the bot job (see `jobs.yaml`).
+
+2. **Test with a dry run:**
+   ```sh
+   toolforge jobs run mytool --command 'cd $HOME/CatWatchBot2.0 && pyvenv/bin/python catwatchbot.py --simulate --verbose' --image python3.13
+   ```
+   The database is automatically created on first run. Check the output:
+   ```sh
+   ls $HOME/CatWatchBot2.0/simulate_output/
+   ```
+
+3. **Schedule the bot job:**
+   Once the test run looks correct, load the scheduled job:
+   ```sh
+   toolforge jobs load jobs.yaml
+   ```
+   This runs the bot daily at 23:54 UTC (see `jobs.yaml`).
 
 ## 📋 What It Does
 - Updates maintenance statistics on Wikipedia project pages
