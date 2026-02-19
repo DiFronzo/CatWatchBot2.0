@@ -134,33 +134,38 @@ class CatWatcher:
         self.removals = members0.difference(members1)
         self.additions = members1.difference(members0)
 
+        # Detect first-run seeding: if DB was empty, skip per-page API lookups
+        seeding = len(members0) == 0 and len(self.additions) > 0
+        if seeding:
+            logger.info('    First run for %s — seeding %d members (skipping per-page checks)',
+                        cat_title, len(self.additions))
+
         for p in self.removals:
-            if not dryrun:
-                cur.execute('INSERT INTO catlog (date,category,page,added,new) VALUES (?,?,?,0,0)',
-                            (now, cat_title, p))
-                cur.execute('DELETE FROM catmembers WHERE category=? AND page=?',
-                            (cat_title, p))
+            cur.execute('INSERT INTO catlog (date,category,page,added,new) VALUES (?,?,?,0,0)',
+                        (now, cat_title, p))
+            cur.execute('DELETE FROM catmembers WHERE category=? AND page=?',
+                        (cat_title, p))
 
         for i, p in enumerate(self.additions):
             isnew = 0
-            try:
-                page_obj = pywikibot.Page(site, p)
-                oldest = next(page_obj.revisions(reverse=True, total=1))
-                ts = oldest.timestamp
-                # Compare as naive UTC datetimes (pywikibot timestamps are UTC but naive)
-                if ts.replace(tzinfo=None) > datetime.utcnow() - timedelta(days=7):
-                    isnew = 1
-            except (StopIteration, pywikibot.exceptions.Error):
-                pass
+            if not seeding:
+                try:
+                    page_obj = pywikibot.Page(site, p)
+                    oldest = next(page_obj.revisions(reverse=True, total=1))
+                    ts = oldest.timestamp
+                    # Compare as naive UTC datetimes (pywikibot timestamps are UTC but naive)
+                    if ts.replace(tzinfo=None) > datetime.utcnow() - timedelta(days=7):
+                        isnew = 1
+                except (StopIteration, pywikibot.exceptions.Error):
+                    pass
 
-            # Throttle API requests to avoid 429 rate limiting
-            time.sleep(2)
+                # Throttle API requests to avoid 429 rate limiting
+                time.sleep(1)
 
-            if not dryrun:
-                cur.execute('INSERT INTO catmembers (date,category,page) VALUES (?,?,?)',
-                            (now, cat_title, p))
-                cur.execute('INSERT INTO catlog (date,category,page,added,new) VALUES (?,?,?,1,?)',
-                            (now, cat_title, p, isnew))
+            cur.execute('INSERT INTO catmembers (date,category,page) VALUES (?,?,?)',
+                        (now, cat_title, p))
+            cur.execute('INSERT INTO catlog (date,category,page,added,new) VALUES (?,?,?,1,?)',
+                        (now, cat_title, p, isnew))
 
         sql.commit()
         cur.close()
@@ -194,13 +199,10 @@ class StatBot:
             self.update_wpstatpage(k)
 
         n = datetime.now()
-        page = pywikibot.Page(self.site,
-                              'Wikipedia:Underprosjekter/Vedlikehold og oppussing/Statistikk')
         text = '{{#switch:{{{1|}}}\n| dato = %04d%02d%02d%02d%02d%02d\n| {{Feil|Ukjent nøkkel}}\n}}' % (
             n.year, n.month, n.day, n.hour, n.minute, n.second)
-        if not self.dryrun:
-            page.text = text
-            page.save(summary='Oppdaterer')
+        save_or_dump('Wikipedia:Underprosjekter/Vedlikehold og oppussing/Statistikk',
+                     text, site=self.site, summary='Oppdaterer', dryrun=self.dryrun)
 
         # And ticker
         self.update_ticker()
