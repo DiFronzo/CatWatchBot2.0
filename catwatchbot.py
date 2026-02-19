@@ -22,7 +22,9 @@ import pywikibot
 
 parser = argparse.ArgumentParser(description='CatWatchBot')
 parser.add_argument('--simulate', action='store_true', help='Do not write results to wiki')
-parser.add_argument('--verbose', action='store_true', help='Output debug messages')
+parser.add_argument('--verbose', action='store_true', help='Output debug output')
+parser.add_argument('--backfill', action='store_true',
+                    help='Backfill missing cleanlog dates for seeded pages (slow, run once)')
 args = parser.parse_args()
 
 logger = logging.getLogger()
@@ -270,6 +272,44 @@ class StatBot:
         self.sql.commit()
         cur.close()
 
+    def backfill(self):
+        """Backfill missing cleanlog entries for pages that were seeded without check_page."""
+        logger.info('============== Backfill: finding pages with missing cleanlog entries ==============')
+        cur = self.sql.cursor()
+        total = 0
+        processed = 0
+
+        for k in cats:
+            pages_to_check = []
+            for catname in cats[k]['categories']:
+                for row in cur.execute(
+                    'SELECT m.page FROM catmembers m '
+                    'WHERE m.category=? AND NOT EXISTS ('
+                    '  SELECT 1 FROM cleanlog c WHERE c.page=m.page AND c.category=?)',
+                    (catname, k)):
+                    pages_to_check.append(row[0])
+
+            if not pages_to_check:
+                logger.info('    %s: all pages already have cleanlog entries', k)
+                continue
+
+            total += len(pages_to_check)
+            logger.info('    %s: %d pages to backfill', k, len(pages_to_check))
+
+            for i, p in enumerate(pages_to_check):
+                logger.info('    [%d/%d] Backfilling %s (%s)', i + 1, len(pages_to_check), p, k)
+                self.check_page(p, 'merket', k, cats[k]['templates'])
+                processed += 1
+
+                # Commit every 50 pages to save progress
+                if processed % 50 == 0:
+                    self.sql.commit()
+                    logger.info('    Progress: %d/%d pages processed', processed, total)
+
+        self.sql.commit()
+        cur.close()
+        logger.info('Backfill complete: %d pages processed', processed)
+
     def check_page(self, p, q, catkey, templates):
         foundTemplateChange = False
         revschecked = 0
@@ -282,7 +322,7 @@ class StatBot:
                 logger.info("    %s: page does not exist (deleted?)" % p)
                 return
 
-            for rev in page_obj.revisions(content=True, total=1000):
+            for rev in page_obj.revisions(content=True, total=500):
                 revschecked += 1
                 logger.debug(" checking (%s)" % rev.revid)
 
@@ -647,7 +687,11 @@ try:
 
     logger.debug('testing æøå')
 
-    StatBot(dryrun=args.simulate)
+    bot = StatBot(dryrun=args.simulate)
+
+    if args.backfill:
+        bot.backfill()
+
     CatOverview(dryrun=args.simulate)
 
     runend = datetime.now()

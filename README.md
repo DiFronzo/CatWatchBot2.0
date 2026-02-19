@@ -43,15 +43,24 @@ It updates statistics for maintenance categories for the [Vedlikehold og oppussi
 ## 🏃 Usage
 Run the bot with:
 ```sh
-python catwatchbot.py [--simulate] [--verbose]
+python catwatchbot.py [--simulate] [--verbose] [--backfill]
 ```
-- `--simulate` : Run in dry-run mode (no changes will be written to Wikipedia)
-- `--verbose`  : Enable debug output
+- `--simulate`  : Run in dry-run mode (no changes will be written to Wikipedia)
+- `--verbose`   : Enable debug output
+- `--backfill`  : Backfill missing "Merket siden" dates for seeded pages (slow, run once - good for first time run)
 
-Example:
+Examples:
 ```sh
 python catwatchbot.py --simulate --verbose
 ```
+
+To backfill missing dates after the first run:
+```sh
+python catwatchbot.py --backfill --verbose
+```
+> **Note:** The first run seeds the database quickly by skipping per-page revision lookups.
+> This means "Merket siden" dates will show `--`. Run `--backfill` once to fill in those dates.
+> This can take several hours depending on the number of pages.
 
 ## 🛠️ Deployment on Toolforge
 
