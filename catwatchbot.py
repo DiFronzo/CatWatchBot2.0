@@ -322,7 +322,7 @@ class StatBot:
                 logger.info("    %s: page does not exist (deleted?)" % p)
                 return
 
-            for rev in page_obj.revisions(content=True, total=500):
+            for rev in page_obj.revisions(content=True, total=100):
                 revschecked += 1
                 logger.debug(" checking (%s)" % rev.revid)
 
